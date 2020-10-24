@@ -1,0 +1,107 @@
+- hosts: test
+  become: yes
+  become_method: sudo
+  remote_user: ansible
+  tasks:
+    - name: install java
+      yum:
+        name: java
+        state: latest
+
+    - name: create directory
+      file:
+        path: /tomcat
+        state: directory
+        mode: 0775
+
+    - name: download tomcat
+      get_url:
+        url: https://archive.apache.org/dist/tomcat/tomcat-8/v8.0.32/bin/apache-tomcat-8.0.32.tar.gz
+        dest: /tomcat
+
+    - name: unzip
+      unarchive:
+        src: /tomcat/apache-tomcat-8.0.32.tar.gz
+        dest: /tomcat
+        remote_src: yes
+
+    - name: open port
+      firewalld:
+        port: 8080/tcp
+        permanent: yes
+        immediate: yes
+        state: enabled
+      become: yes
+
+    - name: tomcat user
+      user:
+        name: tomcat_user
+        shell: /sbin/nologin
+
+    - name: chane ownership
+      file:
+        path: /tomcat//apache-tomcat-8.0.32
+        owner: tomcat_user
+        group: tomcat_user
+        recurse: yes
+        state: directory
+
+    - name: tomcat symbolic
+      file:
+        src: /tomcat/apache-tomcat-8.0.32
+        dest: /tomcat/tomcat8
+        owner: tomcat_user
+        group: tomcat_user
+        state: link
+
+    - name: service
+      file:
+        path: /etc/systemd/system/tomcast.service
+        state: touch
+
+    - name: tomcat.service
+      blockinfile:
+        dest: /etc/systemd/system/tomcat.service
+        insertafer:
+        block: |
+          [Unit]
+          Description: Apache Tomcat 8
+          After: syslog.target network.target
+          [Service]
+          User: tomcat_user
+          Group: tomcat_user
+          Type: oneshot
+          PIDFile: /tomcat/apache-tomcat-8.0.32/tomcat.pid
+          RemainAfterExit: yes
+          ExecStart: /tomcat/apache-tomcat-8.0.32/bin/startup.sh
+          ExecStop: /tomcat/apache-tomcat-8.0.32/bin/shutdown.sh
+          ExecRestart: /tomcat/apache-tomcat-8.0.32/bin/shutdown.sh;/tomcat/apache-tomcat-8.0.32/bin/startup.sh
+          [Install]
+          WantedBy: multi-user.target
+
+    - name: permission tomcat.service
+      file:
+        path: /etc/systemd/system/tomcat.service
+        mode: 0755
+
+    - name: user.xml
+      blockinfile:
+        dest: /tomcat/apache-tomcat-8.0.32/conf/tomcat-users.xml
+        insertafter: <tomcat-users>
+        block: |
+          <role rolename = "admin-gui" />
+          <role rolename = "manager-gui" />
+          <user username = "tomcat_user" password = "ansible" roles = "admin-gui, manager-gui" />
+
+    - name: install jenkins
+      get_url:
+        url: https://get.jenkins.io/war-stable/2.249.1/jenkins.war
+        dest: /tomcat/apache-tomcat-8.0.32/webapps
+
+    - name: start service
+      systemd:
+        name: tomcat.service
+        state: started
+        daemond_reload: yes
+        enabled: yes
+      become: yes
