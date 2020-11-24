@@ -1,0 +1,18 @@
+- hosts: test
+  become: yes
+  become_method: sudo
+  remote_user: ansible
+  tasks:
+    - name: install git
+      yum:
+        name: git
+        state: latest
+
+    - name: open port
+      firewalld:
+        port: 8080/tcp
+        permanent: yes
+        immediate: yes
+        state: enabled
+      become: yes
+
