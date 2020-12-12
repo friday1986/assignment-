@@ -1,0 +1,43 @@
+- hosts: test
+  become: yes
+  become_method: sudo
+  remote_user: ansible
+  tasks:
+    - name: install http
+      yum:
+        name: httpd
+        state: latest
+
+    - name: create a file 
+      file: 
+        path: /var/www/html/index.html
+        state: touch
+        mode: 0755
+
+    - name: edit file
+      blockinfile:
+        path: /var/www/html/index.html 
+        block: |
+          <html>
+
+          WELCOME TO DevOps WORLD
+
+          </html> 
+
+    - name: start service
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+
+    - name: port
+      firewalld:
+        port: 80/tcp
+        permanent: yes
+        state: enabled
+      become: yes 
+
+    - name: service restart
+      service:
+        name: httpd
+        state: restarted
